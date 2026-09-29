@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <h1>Dashboard</h1>
+    <p class="text-muted">HRM system overview</p>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="card shadow-sm p-3">
+            <h6 class="text-muted">Active Departments</h6>
+            <h2>{{ total }}</h2>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm p-3">
+            <h6 class="text-muted">Inactive Departments</h6>
+            <h2>{{ inactive }}</h2>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4">
+    <a class="btn btn-primary" href="{{ url_for('create_department') }}">
+        Create Department
+    </a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('departments') }}">
+        Manage Departments
+    </a>
+</div>
+{% endblock %}

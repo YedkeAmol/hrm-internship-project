@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if department else "Create" }} Department{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-7">
+<div class="card shadow-sm p-4">
+    <h2>{{ "Update Department" if department else "Create Department" }}</h2>
+    <p class="text-muted">Enter department information below.</p>
+
+    <form method="post">
+        <div class="mb-3">
+            <label class="form-label">Department Name</label>
+            <input class="form-control" name="dept_name" required maxlength="100"
+                   value="{{ department.dept_name if department else '' }}">
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Department Description</label>
+            <textarea class="form-control" name="description" maxlength="300"
+                      rows="4">{{ department.description if department else '' }}</textarea>
+        </div>
+
+        <button class="btn btn-primary">
+            {{ "Update" if department else "Create" }}
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('departments') }}">Cancel</a>
+    </form>
+</div>
+</div>
+</div>
+{% endblock %}
