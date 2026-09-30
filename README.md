@@ -1,64 +1,46 @@
 # HRM Internship Project
 
-Human Resource Management System developed for the VIBGYOR Integrated Internship - Python.
+A Human Resource Management System developed as part of the VIBGYOR Integrated Internship using Python, Flask, HTML, CSS, and SQLite.
 
-## Current module
+## Modules
+
 - Department Management
+- Role Management
 
-## Implemented functionality
-- Dashboard
-- Create department
-- View departments
+## Implemented Functionality
+
+### Department Management
+
+- Create departments
+- Update department details
 - Search departments
-- Update department
-- Soft delete / deactivate department
-- Activate department
-- SQLite database
+- Activate/deactivate departments
+- View department information
 
-## Run locally
+### Role Management
+
+- Create roles
+- Update role details
+- Search roles
+- Activate/deactivate roles
+- View role information
+
+## Technologies Used
+
+- Python
+- Flask
+- HTML5
+- CSS3
+- SQLite
+
+## Database
+
+The project uses an SQLite database (`hrm.db`) to store department and role information.
+
+## Run Locally
+
+Create a virtual environment:
+
 
 ```bash
 python -m venv venv
-```
-
-Windows:
-
-```bash
-venv\Scripts\activate
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Run:
-
-```bash
-python app.py
-```
-
-Open:
-
-```text
-http://127.0.0.1:5000
-```
-
-## Project structure
-
-```text
-hrm_internship/
-├── app.py
-├── requirements.txt
-├── README.md
-├── hrm.db              # created automatically after first run
-├── templates/
-│   ├── base.html
-│   ├── dashboard.html
-│   ├── departments.html
-│   └── department_form.html
-└── static/
-    └── css/
-        └── style.css
-```
