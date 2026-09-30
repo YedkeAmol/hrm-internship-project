@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Roles{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>Role Management</h1>
+        <p class="text-muted">Create, update, search and deactivate roles.</p>
+    </div>
+    <a class="btn btn-primary" href="{{ url_for('create_role') }}">+ Create Role</a>
+</div>
+
+<form class="row g-2 mb-3" method="get">
+    <div class="col-md-6">
+        <input class="form-control" name="search" value="{{ search }}"
+               placeholder="Search role...">
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-outline-primary">Search</button>
+    </div>
+    <div class="col-auto">
+        <a class="btn btn-outline-secondary" href="{{ url_for('roles') }}">Clear</a>
+    </div>
+</form>
+
+<div class="card shadow-sm">
+<div class="table-responsive">
+<table class="table table-hover mb-0">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Role</th>
+            <th>Description</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for r in roles %}
+        <tr>
+            <td>{{ r.role_id }}</td>
+            <td>{{ r.role_name }}</td>
+            <td>{{ r.description or "-" }}</td>
+            <td>
+                {% if r.status %}
+                    <span class="badge text-bg-success">Active</span>
+                {% else %}
+                    <span class="badge text-bg-secondary">Inactive</span>
+                {% endif %}
+            </td>
+            <td class="d-flex gap-2">
+                <a class="btn btn-sm btn-warning"
+                   href="{{ url_for('edit_role', role_id=r.role_id) }}">Edit</a>
+                <form method="post"
+                      action="{{ url_for('toggle_role', role_id=r.role_id) }}"
+                      onsubmit="return confirm('Are you sure you want to change this role status?');">
+                    <button class="btn btn-sm btn-danger">
+                        {{ "Deactivate" if r.status else "Activate" }}
+                    </button>
+                </form>
+            </td>
+        </tr>
+    {% else %}
+        <tr><td colspan="5" class="text-center p-4">No roles found.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+</div>
+{% endblock %}

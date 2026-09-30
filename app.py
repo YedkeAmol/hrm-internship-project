@@ -25,6 +25,16 @@ def init_db():
             status INTEGER NOT NULL DEFAULT 1
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS role (
+            role_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            role_name VARCHAR(100) NOT NULL UNIQUE,
+            description VARCHAR(300),
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            status INTEGER NOT NULL DEFAULT 1
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -125,18 +135,17 @@ def edit_department(dept_id):
             """, (name, description, now, dept_id))
             conn.commit()
             flash("Department updated successfully.", "success")
+            conn.close()
             return redirect(url_for("dashboard"))
         except sqlite3.IntegrityError:
             flash("A department with this name already exists.", "danger")
-        finally:
             conn.close()
-            if request.method == "POST":
-                return render_template(
-                    "department_form.html",
-                    department={"dept_id": dept_id,
-                                 "dept_name": name,
-                                 "description": description}
-                )
+            return render_template(
+                "department_form.html",
+                department={"dept_id": dept_id,
+                             "dept_name": name,
+                             "description": description}
+            )
 
     conn.close()
     return render_template("department_form.html", department=department)
@@ -167,6 +176,132 @@ def toggle_department(dept_id):
         "success"
     )
     return redirect(url_for("departments"))
+
+
+@app.route("/roles")
+def roles():
+    search = request.args.get("search", "").strip()
+    conn = get_db()
+
+    if search:
+        rows = conn.execute("""
+            SELECT * FROM role
+            WHERE role_name LIKE ? OR description LIKE ?
+            ORDER BY role_id DESC
+        """, (f"%{search}%", f"%{search}%")).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM role ORDER BY role_id DESC"
+        ).fetchall()
+
+    conn.close()
+    return render_template("roles.html", roles=rows, search=search)
+
+
+@app.route("/roles/create", methods=["GET", "POST"])
+def create_role():
+    if request.method == "POST":
+        name = request.form.get("role_name", "").strip()
+        description = request.form.get("description", "").strip()
+
+        if not name:
+            flash("Role name is required.", "danger")
+            return render_template("role_form.html", role=None)
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn = get_db()
+
+        try:
+            conn.execute("""
+                INSERT INTO role
+                (role_name, description, created_at, updated_at, status)
+                VALUES (?, ?, ?, ?, 1)
+            """, (name, description, now, now))
+            conn.commit()
+            flash("Role created successfully.", "success")
+            return redirect(url_for("roles"))
+        except sqlite3.IntegrityError:
+            flash("A role with this name already exists.", "danger")
+        finally:
+            conn.close()
+
+    return render_template("role_form.html", role=None)
+
+
+@app.route("/roles/<int:role_id>/edit", methods=["GET", "POST"])
+def edit_role(role_id):
+    conn = get_db()
+    role = conn.execute(
+        "SELECT * FROM role WHERE role_id = ?", (role_id,)
+    ).fetchone()
+
+    if role is None:
+        conn.close()
+        flash("Role not found.", "danger")
+        return redirect(url_for("roles"))
+
+    if request.method == "POST":
+        name = request.form.get("role_name", "").strip()
+        description = request.form.get("description", "").strip()
+
+        if not name:
+            conn.close()
+            flash("Role name is required.", "danger")
+            return render_template(
+                "role_form.html", role=role
+            )
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        try:
+            conn.execute("""
+                UPDATE role
+                SET role_name = ?, description = ?, updated_at = ?
+                WHERE role_id = ?
+            """, (name, description, now, role_id))
+            conn.commit()
+            flash("Role updated successfully.", "success")
+            conn.close()
+            return redirect(url_for("roles"))
+        except sqlite3.IntegrityError:
+            flash("A role with this name already exists.", "danger")
+            conn.close()
+            return render_template(
+                "role_form.html",
+                role={"role_id": role_id,
+                             "role_name": name,
+                             "description": description}
+            )
+
+    conn.close()
+    return render_template("role_form.html", role=role)
+
+
+@app.post("/roles/<int:role_id>/toggle")
+def toggle_role(role_id):
+    conn = get_db()
+    role = conn.execute(
+        "SELECT status FROM role WHERE role_id = ?", (role_id,)
+    ).fetchone()
+
+    if role is None:
+        conn.close()
+        flash("Role not found.", "danger")
+        return redirect(url_for("roles"))
+
+    new_status = 0 if role["status"] else 1
+    conn.execute(
+        "UPDATE role SET status = ?, updated_at = ? WHERE role_id = ?",
+        (new_status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), role_id)
+    )
+    conn.commit()
+    conn.close()
+
+    flash(
+        "Role activated." if new_status else "Role made inactive.",
+        "success"
+    )
+    return redirect(url_for("roles"))
 
 
 if __name__ == "__main__":

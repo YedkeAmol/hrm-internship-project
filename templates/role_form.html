@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if role else "Create" }} Role{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-7">
+<div class="card shadow-sm p-4">
+    <h2>{{ "Update Role" if role else "Create Role" }}</h2>
+    <p class="text-muted">Enter role information below.</p>
+
+    <form method="post">
+        <div class="mb-3">
+            <label class="form-label">Role Name</label>
+            <input class="form-control" name="role_name" required maxlength="100"
+                   value="{{ role.role_name if role else '' }}">
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Role Description</label>
+            <textarea class="form-control" name="description" maxlength="300"
+                      rows="4">{{ role.description if role else '' }}</textarea>
+        </div>
+
+        <button class="btn btn-primary">
+            {{ "Update" if role else "Create" }}
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('roles') }}">Cancel</a>
+    </form>
+</div>
+</div>
+</div>
+{% endblock %}
