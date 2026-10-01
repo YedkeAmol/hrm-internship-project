@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if employee else "Create" }} Employee{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-8">
+<div class="card shadow-sm p-4">
+    <h2>{{ "Update Employee" if employee else "Add Employee" }}</h2>
+    <p class="text-muted">Enter employee information below.</p>
+
+    <form method="post">
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="form-label">First Name</label>
+                <input type="text" class="form-control" name="first_name" required maxlength="100"
+                       value="{{ employee.first_name if employee else '' }}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Last Name</label>
+                <input type="text" class="form-control" name="last_name" maxlength="100"
+                       value="{{ employee.last_name if employee else '' }}">
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-control" name="email" required maxlength="100"
+                       value="{{ employee.email if employee else '' }}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Mobile Number</label>
+                <input type="text" class="form-control" name="mobile" maxlength="100"
+                       value="{{ employee.mobile if employee else '' }}">
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Select Role</label>
+                <select class="form-select" name="role_id">
+                    <option value="">-- Select Role --</option>
+                    {% for r in roles %}
+                    <option value="{{ r.role_id }}" {% if employee and employee.role_id == r.role_id %}selected{% endif %}>
+                        {{ r.role_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Select Department</label>
+                <select class="form-select" name="dept_id">
+                    <option value="">-- Select Department --</option>
+                    {% for d in departments %}
+                    <option value="{{ d.dept_id }}" {% if employee and employee.dept_id == d.dept_id %}selected{% endif %}>
+                        {{ d.dept_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Reporting Manager</label>
+                <select class="form-select" name="reporting_manager_id">
+                    <option value="">-- Select Manager --</option>
+                    {% for m in managers %}
+                    <option value="{{ m.employee_id }}" {% if employee and employee.reporting_manager_id == m.employee_id %}selected{% endif %}>
+                        {{ m.first_name }} {{ m.last_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Date of Joining</label>
+                <input type="date" class="form-control" name="date_of_joining"
+                       value="{{ employee.date_of_joining if employee else '' }}">
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <label class="form-label">Username</label>
+                <input type="text" class="form-control" name="username" required maxlength="100"
+                       value="{{ employee.username if employee else '' }}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Set Password</label>
+                <input type="password" class="form-control" name="password" required maxlength="100"
+                       value="{{ employee.password if employee else '' }}">
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            {{ "Update Employee" if employee else "Add Employee" }}
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('employees') }}">Cancel</a>
+    </form>
+</div>
+</div>
+</div>
+{% endblock %}

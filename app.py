@@ -35,6 +35,26 @@ def init_db():
             status INTEGER NOT NULL DEFAULT 1
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS user (
+            employee_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            first_name VARCHAR(100) NOT NULL,
+            last_name VARCHAR(100) NOT NULL,
+            username VARCHAR(100) NOT NULL UNIQUE,
+            password VARCHAR(100) NOT NULL,
+            email VARCHAR(100) NOT NULL UNIQUE,
+            mobile VARCHAR(100) NOT NULL,
+            dept_id INTEGER,
+            role_id INTEGER,
+            reporting_manager_id INTEGER,
+            date_of_joining DATE,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            FOREIGN KEY (dept_id) REFERENCES department (dept_id),
+            FOREIGN KEY (role_id) REFERENCES role (role_id),
+            FOREIGN KEY (reporting_manager_id) REFERENCES user (employee_id)
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -42,14 +62,33 @@ def init_db():
 @app.route("/")
 def dashboard():
     conn = get_db()
-    total = conn.execute(
+    total_dept = conn.execute(
         "SELECT COUNT(*) FROM department WHERE status = 1"
     ).fetchone()[0]
-    inactive = conn.execute(
+    inactive_dept = conn.execute(
         "SELECT COUNT(*) FROM department WHERE status = 0"
     ).fetchone()[0]
+    
+    total_roles = conn.execute(
+        "SELECT COUNT(*) FROM role WHERE status = 1"
+    ).fetchone()[0]
+    inactive_roles = conn.execute(
+        "SELECT COUNT(*) FROM role WHERE status = 0"
+    ).fetchone()[0]
+    
+    total_employees = conn.execute(
+        "SELECT COUNT(*) FROM user"
+    ).fetchone()[0]
+    
     conn.close()
-    return render_template("dashboard.html", total=total, inactive=inactive)
+    return render_template(
+        "dashboard.html", 
+        total=total_dept, 
+        inactive=inactive_dept,
+        total_roles=total_roles,
+        inactive_roles=inactive_roles,
+        total_employees=total_employees
+    )
 
 
 @app.route("/departments")
@@ -303,6 +342,141 @@ def toggle_role(role_id):
     )
     return redirect(url_for("roles"))
 
+
+
+@app.route("/employees")
+def employees():
+    conn = get_db()
+    # Join user table with role and department tables to get their names
+    # Also join with user table itself to get reporting manager's name
+    query = """
+        SELECT u.*, 
+               d.dept_name, 
+               r.role_name,
+               rm.first_name AS rm_first, 
+               rm.last_name AS rm_last
+        FROM user u
+        LEFT JOIN department d ON u.dept_id = d.dept_id
+        LEFT JOIN role r ON u.role_id = r.role_id
+        LEFT JOIN user rm ON u.reporting_manager_id = rm.employee_id
+        ORDER BY u.employee_id DESC
+    """
+    rows = conn.execute(query).fetchall()
+    conn.close()
+    return render_template("employees.html", employees=rows)
+
+@app.route("/employees/create", methods=["GET", "POST"])
+def create_employee():
+    conn = get_db()
+    departments = conn.execute("SELECT * FROM department WHERE status = 1").fetchall()
+    roles = conn.execute("SELECT * FROM role WHERE status = 1").fetchall()
+    managers = conn.execute("SELECT employee_id, first_name, last_name FROM user").fetchall()
+
+    if request.method == "POST":
+        first_name = request.form.get("first_name", "").strip()
+        last_name = request.form.get("last_name", "").strip()
+        email = request.form.get("email", "").strip()
+        mobile = request.form.get("mobile", "").strip()
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+        dept_id = request.form.get("dept_id")
+        role_id = request.form.get("role_id")
+        reporting_manager_id = request.form.get("reporting_manager_id") or None
+        date_of_joining = request.form.get("date_of_joining") or None
+
+        if not first_name or not email or not username or not password:
+            flash("First name, email, username and password are required.", "danger")
+            return render_template("employee_form.html", employee=None, departments=departments, roles=roles, managers=managers)
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        try:
+            conn.execute("""
+                INSERT INTO user
+                (first_name, last_name, username, password, email, mobile, dept_id, role_id, reporting_manager_id, date_of_joining, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (first_name, last_name, username, password, email, mobile, dept_id, role_id, reporting_manager_id, date_of_joining, now, now))
+            conn.commit()
+            flash("Employee created successfully.", "success")
+            return redirect(url_for("employees"))
+        except sqlite3.IntegrityError:
+            flash("An employee with this username or email already exists.", "danger")
+        finally:
+            conn.close()
+
+    conn.close()
+    return render_template("employee_form.html", employee=None, departments=departments, roles=roles, managers=managers)
+
+@app.route("/employees/<int:employee_id>/edit", methods=["GET", "POST"])
+def edit_employee(employee_id):
+    conn = get_db()
+    employee = conn.execute("SELECT * FROM user WHERE employee_id = ?", (employee_id,)).fetchone()
+    departments = conn.execute("SELECT * FROM department WHERE status = 1").fetchall()
+    roles = conn.execute("SELECT * FROM role WHERE status = 1").fetchall()
+    managers = conn.execute("SELECT employee_id, first_name, last_name FROM user WHERE employee_id != ?", (employee_id,)).fetchall()
+
+    if employee is None:
+        conn.close()
+        flash("Employee not found.", "danger")
+        return redirect(url_for("employees"))
+
+    if request.method == "POST":
+        first_name = request.form.get("first_name", "").strip()
+        last_name = request.form.get("last_name", "").strip()
+        email = request.form.get("email", "").strip()
+        mobile = request.form.get("mobile", "").strip()
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+        dept_id = request.form.get("dept_id")
+        role_id = request.form.get("role_id")
+        reporting_manager_id = request.form.get("reporting_manager_id") or None
+        date_of_joining = request.form.get("date_of_joining") or None
+
+        if not first_name or not email or not username or not password:
+            flash("First name, email, username and password are required.", "danger")
+            conn.close()
+            return render_template("employee_form.html", employee=employee, departments=departments, roles=roles, managers=managers)
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        try:
+            conn.execute("""
+                UPDATE user
+                SET first_name = ?, last_name = ?, username = ?, password = ?, email = ?, mobile = ?, 
+                    dept_id = ?, role_id = ?, reporting_manager_id = ?, date_of_joining = ?, updated_at = ?
+                WHERE employee_id = ?
+            """, (first_name, last_name, username, password, email, mobile, dept_id, role_id, reporting_manager_id, date_of_joining, now, employee_id))
+            conn.commit()
+            flash("Employee updated successfully.", "success")
+            conn.close()
+            return redirect(url_for("employees"))
+        except sqlite3.IntegrityError:
+            flash("An employee with this username or email already exists.", "danger")
+            conn.close()
+            return render_template("employee_form.html", employee=employee, departments=departments, roles=roles, managers=managers)
+
+    conn.close()
+    return render_template("employee_form.html", employee=employee, departments=departments, roles=roles, managers=managers)
+
+@app.post("/employees/<int:employee_id>/delete")
+def delete_employee(employee_id):
+    conn = get_db()
+    employee = conn.execute("SELECT * FROM user WHERE employee_id = ?", (employee_id,)).fetchone()
+
+    if employee is None:
+        conn.close()
+        flash("Employee not found.", "danger")
+        return redirect(url_for("employees"))
+
+    # Also update any employees who report to this manager to set reporting_manager_id to NULL
+    conn.execute("UPDATE user SET reporting_manager_id = NULL WHERE reporting_manager_id = ?", (employee_id,))
+    
+    conn.execute("DELETE FROM user WHERE employee_id = ?", (employee_id,))
+    conn.commit()
+    conn.close()
+
+    flash("Employee deleted successfully.", "success")
+    return redirect(url_for("employees"))
 
 if __name__ == "__main__":
     init_db()
