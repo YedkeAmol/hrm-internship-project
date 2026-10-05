@@ -590,6 +590,7 @@ def reset_password():
 
     return render_template("reset_password.html")
 
+init_db()
+
 if __name__ == "__main__":
-    init_db()
     app.run(debug=True)
