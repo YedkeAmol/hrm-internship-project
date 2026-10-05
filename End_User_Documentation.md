@@ -23,3 +23,14 @@ The core feature of the HRM software, enabling seamless onboarding and managemen
     - **Department**: Place the employee in the relevant department.
     - **Reporting Manager**: Select a supervisor from the list of existing users to establish the reporting hierarchy.
 - **Update/Delete**: Use the `Edit` button to update an employee's data if they change roles or departments. If an employee resigns or is terminated, use the `Delete` button to remove their record.
+
+## 5. User Authentication System
+This module secures the HRM software by requiring users to log in before accessing the dashboard and records.
+- **Login**: Employees must enter their unique username and password. The system authenticates these credentials against the secure database.
+- **Access Control**: Unauthenticated users cannot view or manage any internal company data.
+- **Logout**: A secure logout button is provided in the top navigation bar to safely end a session.
+- **Password Reset**:
+    - If a user forgets their password, they can click 'Forgot your password?'.
+    - They will be prompted to enter their registered email address.
+    - An OTP (One Time Password) is dispatched to their email.
+    - Upon verifying the OTP, the user is securely redirected to a page where they can set and confirm a new password.

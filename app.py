@@ -1,4 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, session
+from functools import wraps
+import random
+, render_template, request, redirect, url_for, flash
 import sqlite3
 from datetime import datetime
 
@@ -6,6 +9,15 @@ app = Flask(__name__)
 app.secret_key = "change-this-secret-key"
 DB_NAME = "hrm.db"
 
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'employee_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 def get_db():
     conn = sqlite3.connect(DB_NAME)
@@ -60,6 +72,7 @@ def init_db():
 
 
 @app.route("/")
+@login_required
 def dashboard():
     conn = get_db()
     total_dept = conn.execute(
@@ -92,6 +105,7 @@ def dashboard():
 
 
 @app.route("/departments")
+@login_required
 def departments():
     search = request.args.get("search", "").strip()
     conn = get_db()
@@ -112,6 +126,7 @@ def departments():
 
 
 @app.route("/departments/create", methods=["GET", "POST"])
+@login_required
 def create_department():
     if request.method == "POST":
         name = request.form.get("dept_name", "").strip()
@@ -142,6 +157,7 @@ def create_department():
 
 
 @app.route("/departments/<int:dept_id>/edit", methods=["GET", "POST"])
+@login_required
 def edit_department(dept_id):
     conn = get_db()
     department = conn.execute(
@@ -191,6 +207,7 @@ def edit_department(dept_id):
 
 
 @app.post("/departments/<int:dept_id>/toggle")
+@login_required
 def toggle_department(dept_id):
     conn = get_db()
     department = conn.execute(
@@ -218,6 +235,7 @@ def toggle_department(dept_id):
 
 
 @app.route("/roles")
+@login_required
 def roles():
     search = request.args.get("search", "").strip()
     conn = get_db()
@@ -238,6 +256,7 @@ def roles():
 
 
 @app.route("/roles/create", methods=["GET", "POST"])
+@login_required
 def create_role():
     if request.method == "POST":
         name = request.form.get("role_name", "").strip()
@@ -268,6 +287,7 @@ def create_role():
 
 
 @app.route("/roles/<int:role_id>/edit", methods=["GET", "POST"])
+@login_required
 def edit_role(role_id):
     conn = get_db()
     role = conn.execute(
@@ -317,6 +337,7 @@ def edit_role(role_id):
 
 
 @app.post("/roles/<int:role_id>/toggle")
+@login_required
 def toggle_role(role_id):
     conn = get_db()
     role = conn.execute(
@@ -345,6 +366,7 @@ def toggle_role(role_id):
 
 
 @app.route("/employees")
+@login_required
 def employees():
     conn = get_db()
     # Join user table with role and department tables to get their names
@@ -366,6 +388,7 @@ def employees():
     return render_template("employees.html", employees=rows)
 
 @app.route("/employees/create", methods=["GET", "POST"])
+@login_required
 def create_employee():
     conn = get_db()
     departments = conn.execute("SELECT * FROM department WHERE status = 1").fetchall()
@@ -408,6 +431,7 @@ def create_employee():
     return render_template("employee_form.html", employee=None, departments=departments, roles=roles, managers=managers)
 
 @app.route("/employees/<int:employee_id>/edit", methods=["GET", "POST"])
+@login_required
 def edit_employee(employee_id):
     conn = get_db()
     employee = conn.execute("SELECT * FROM user WHERE employee_id = ?", (employee_id,)).fetchone()
@@ -459,6 +483,7 @@ def edit_employee(employee_id):
     return render_template("employee_form.html", employee=employee, departments=departments, roles=roles, managers=managers)
 
 @app.post("/employees/<int:employee_id>/delete")
+@login_required
 def delete_employee(employee_id):
     conn = get_db()
     employee = conn.execute("SELECT * FROM user WHERE employee_id = ?", (employee_id,)).fetchone()
@@ -477,6 +502,94 @@ def delete_employee(employee_id):
 
     flash("Employee deleted successfully.", "success")
     return redirect(url_for("employees"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+
+        conn = get_db()
+        user = conn.execute("SELECT * FROM user WHERE username = ? AND password = ?", (username, password)).fetchone()
+        conn.close()
+
+        if user:
+            session["employee_id"] = user["employee_id"]
+            session["username"] = user["username"]
+            session["name"] = f"{user['first_name']} {user['last_name']}"
+            flash("Logged in successfully.", "success")
+            return redirect(url_for("dashboard"))
+        else:
+            flash("Invalid username or password.", "danger")
+
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash("You have been logged out.", "success")
+    return redirect(url_for("login"))
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+        conn = get_db()
+        user = conn.execute("SELECT * FROM user WHERE email = ?", (email,)).fetchone()
+        conn.close()
+
+        if user:
+            otp = str(random.randint(100000, 999999))
+            session["reset_email"] = email
+            session["reset_otp"] = otp
+            # Mocking email send
+            print(f"\n*** MOCK EMAIL ***\nTo: {email}\nSubject: Password Reset OTP\nYour OTP is: {otp}\n******************\n")
+            flash(f"An OTP has been sent to {email}. (Check server console/terminal!)", "info")
+            return redirect(url_for("verify_otp"))
+        else:
+            flash("Email address not found.", "danger")
+
+    return render_template("forgot_password.html")
+
+@app.route("/verify-otp", methods=["GET", "POST"])
+def verify_otp():
+    if "reset_email" not in session or "reset_otp" not in session:
+        return redirect(url_for("forgot_password"))
+
+    if request.method == "POST":
+        otp = request.form.get("otp", "").strip()
+        if otp == session.get("reset_otp"):
+            return redirect(url_for("reset_password"))
+        else:
+            flash("Invalid OTP.", "danger")
+
+    return render_template("verify_otp.html")
+
+@app.route("/reset-password", methods=["GET", "POST"])
+def reset_password():
+    if "reset_email" not in session:
+        return redirect(url_for("forgot_password"))
+
+    if request.method == "POST":
+        new_password = request.form.get("new_password", "").strip()
+        confirm_password = request.form.get("confirm_password", "").strip()
+
+        if not new_password or new_password != confirm_password:
+            flash("Passwords do not match or are empty.", "danger")
+        else:
+            conn = get_db()
+            conn.execute("UPDATE user SET password = ?, updated_at = ? WHERE email = ?", (new_password, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), session["reset_email"]))
+            conn.commit()
+            conn.close()
+
+            session.pop("reset_email", None)
+            session.pop("reset_otp", None)
+
+            flash("Password reset successfully. You can now log in.", "success")
+            return redirect(url_for("login"))
+
+    return render_template("reset_password.html")
 
 if __name__ == "__main__":
     init_db()

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Verify OTP{% endblock %}
+{% block content %}
+<div class="row justify-content-center align-items-center" style="min-height: 80vh;">
+    <div class="col-md-5 col-lg-4">
+        <div class="card shadow p-4 text-center border-info bg-light">
+            <h5 class="mb-2">Enter OTP</h5>
+            <p class="text-success small mb-4">Check your email for the OTP*</p>
+            <form method="post">
+                <div class="mb-4 text-start">
+                    <input type="text" class="form-control text-center" name="otp" placeholder="One Time Password" required>
+                </div>
+                <button type="submit" class="btn btn-primary px-4">Submit</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
