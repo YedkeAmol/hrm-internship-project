@@ -34,3 +34,21 @@ This module secures the HRM software by requiring users to log in before accessi
     - They will be prompted to enter their registered email address.
     - An OTP (One Time Password) is dispatched to their email.
     - Upon verifying the OTP, the user is securely redirected to a page where they can set and confirm a new password.
+
+## 6. Task Management System
+This module allows managers to assign and track tasks, and employees to update their progress.
+- **Task Dashboard**: View all tasks with interactive filters (by employee, status, date) and a visual bar chart showing the breakdown of Pending, In Progress, and Completed tasks.
+- **Task Creation**: Managers can create new tasks and assign them to their direct reports. The system automatically restricts the "Assigned To" dropdown to only show the manager's reportees.
+- **Progress Tracking**: Assigned employees can view their tasks and update the status to "In Progress" or "Completed". Managers can edit task details or delete tasks entirely.
+
+## 7. Performance Management System
+This module facilitates structured periodic reviews for employees.
+- **Review Dashboard**: Displays a comprehensive table of all reviews, along with statistical breakdowns (monthly vs. quarterly vs. annual, and rating distributions). Includes filters to narrow down the view.
+- **Conducting Reviews**: Managers and Admins can create a review for any of their direct reports. They can select the review period, provide a rating (1-10), and write detailed comments.
+- **Actions**: Managers can view comments via a popup, edit existing reviews to update feedback, or delete records.
+
+## 8. Leave Management System
+This module automates the tracking of employee leave requests and balances.
+- **Leave Quotas (Admin)**: HR/Admins use the Leave Quota page to assign and manage Privilege Leaves (PL), Casual Leaves (CL), and Sick Leaves (SL) for every employee.
+- **Employee Leave Dashboard**: Employees see their remaining leave balances dynamically displayed on colored cards. They can easily apply for new leaves, and update their applications as long as they are still marked as "Pending".
+- **Manager Approvals**: Managers see a dedicated "Reportees Leaves" section on their dashboard. They can review the requested dates and reason, and officially "Approve" or "Reject" the request. Approved leaves automatically deduct the days from the employee's quota balance.
