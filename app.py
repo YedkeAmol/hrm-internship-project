@@ -109,6 +109,33 @@ def init_db():
             FOREIGN KEY (reviewed_by) REFERENCES user (employee_id)
         )
     ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS leave_quota (
+            quota_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            employee_id INTEGER NOT NULL,
+            leave_type VARCHAR(50) NOT NULL,
+            total_quota INTEGER NOT NULL DEFAULT 0,
+            used_quota INTEGER NOT NULL DEFAULT 0,
+            remain_quota INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(employee_id, leave_type),
+            FOREIGN KEY (employee_id) REFERENCES user (employee_id)
+        )
+    ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS leave_request (
+            leave_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            employee_id INTEGER NOT NULL,
+            leave_type VARCHAR(50) NOT NULL,
+            reason VARCHAR(200) NOT NULL,
+            start_date DATE NOT NULL,
+            end_date DATE NOT NULL,
+            total_days INTEGER NOT NULL,
+            status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+            approved_by INTEGER,
+            FOREIGN KEY (employee_id) REFERENCES user (employee_id),
+            FOREIGN KEY (approved_by) REFERENCES user (employee_id)
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -973,6 +1000,216 @@ def delete_review(review_id):
     conn.close()
     flash("Review deleted successfully.", "success")
     return redirect(url_for("reviews"))
+
+
+from datetime import datetime
+
+@app.route("/leaves")
+@login_required
+def leaves():
+    conn = get_db()
+    current_user_id = session.get("employee_id")
+    
+    # 1. Fetch balances for current user
+    balances = conn.execute(
+        "SELECT leave_type, remain_quota FROM leave_quota WHERE employee_id = ?",
+        (current_user_id,)
+    ).fetchall()
+    
+    bal_dict = {"PL": 0, "CL": 0, "SL": 0}
+    for b in balances:
+        bal_dict[b['leave_type']] = b['remain_quota']
+
+    # 2. Fetch my leave requests
+    my_leaves = conn.execute(
+        "SELECT * FROM leave_request WHERE employee_id = ? ORDER BY start_date DESC",
+        (current_user_id,)
+    ).fetchall()
+
+    # 3. Fetch reportees' leaves (if manager)
+    reportees_leaves = conn.execute("""
+        SELECT lr.*, u.first_name, u.last_name 
+        FROM leave_request lr
+        JOIN user u ON lr.employee_id = u.employee_id
+        WHERE u.reporting_manager_id = ?
+        ORDER BY lr.start_date DESC
+    """, (current_user_id,)).fetchall()
+    
+    conn.close()
+    return render_template(
+        "leaves.html", 
+        balances=bal_dict, 
+        my_leaves=my_leaves, 
+        reportees_leaves=reportees_leaves
+    )
+
+
+@app.route("/leaves/apply", methods=["GET", "POST"])
+@login_required
+def apply_leave():
+    if request.method == "POST":
+        conn = get_db()
+        current_user_id = session.get("employee_id")
+        
+        leave_type = request.form.get("leave_type")
+        reason = request.form.get("reason", "").strip()
+        start_date = request.form.get("start_date")
+        end_date = request.form.get("end_date")
+        
+        if not leave_type or not start_date or not end_date:
+            flash("All fields are required.", "danger")
+            return render_template("leave_form.html", leave=None, mode="apply")
+            
+        # Calculate days (simple calculation, assuming inclusive and skipping weekends is out of scope for now unless specified)
+        d1 = datetime.strptime(start_date, "%Y-%m-%d")
+        d2 = datetime.strptime(end_date, "%Y-%m-%d")
+        total_days = (d2 - d1).days + 1
+        
+        if total_days <= 0:
+            flash("End date must be after start date.", "danger")
+            return render_template("leave_form.html", leave=None, mode="apply")
+
+        conn.execute("""
+            INSERT INTO leave_request (employee_id, leave_type, reason, start_date, end_date, total_days)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (current_user_id, leave_type, reason, start_date, end_date, total_days))
+        
+        conn.commit()
+        conn.close()
+        flash("Leave applied successfully.", "success")
+        return redirect(url_for("leaves"))
+        
+    return render_template("leave_form.html", leave=None, mode="apply")
+
+
+@app.route("/leaves/<int:leave_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_leave(leave_id):
+    conn = get_db()
+    current_user_id = session.get("employee_id")
+    
+    leave_req = conn.execute("""
+        SELECT lr.*, u.reporting_manager_id, u.first_name, u.last_name 
+        FROM leave_request lr
+        JOIN user u ON lr.employee_id = u.employee_id
+        WHERE lr.leave_id = ?
+    """, (leave_id,)).fetchone()
+    
+    if not leave_req:
+        conn.close()
+        flash("Leave request not found.", "danger")
+        return redirect(url_for("leaves"))
+
+    is_owner = (leave_req['employee_id'] == current_user_id)
+    is_manager = (leave_req['reporting_manager_id'] == current_user_id)
+
+    if not is_owner and not is_manager:
+        conn.close()
+        flash("Unauthorized.", "danger")
+        return redirect(url_for("leaves"))
+        
+    if is_owner and not is_manager and leave_req['status'] != 'Pending':
+        conn.close()
+        flash("Cannot edit processed leave.", "danger")
+        return redirect(url_for("leaves"))
+
+    if request.method == "POST":
+        if is_manager:
+            status = request.form.get("status")
+            conn.execute("UPDATE leave_request SET status = ?, approved_by = ? WHERE leave_id = ?", 
+                         (status, current_user_id, leave_id))
+            
+            # Deduct from quota if approved
+            if status == "Approved" and leave_req['status'] != "Approved":
+                conn.execute("""
+                    UPDATE leave_quota 
+                    SET used_quota = used_quota + ?, remain_quota = remain_quota - ?
+                    WHERE employee_id = ? AND leave_type = ?
+                """, (leave_req['total_days'], leave_req['total_days'], leave_req['employee_id'], leave_req['leave_type']))
+            
+        elif is_owner:
+            leave_type = request.form.get("leave_type")
+            reason = request.form.get("reason", "").strip()
+            start_date = request.form.get("start_date")
+            end_date = request.form.get("end_date")
+            
+            d1 = datetime.strptime(start_date, "%Y-%m-%d")
+            d2 = datetime.strptime(end_date, "%Y-%m-%d")
+            total_days = (d2 - d1).days + 1
+            
+            conn.execute("""
+                UPDATE leave_request 
+                SET leave_type = ?, reason = ?, start_date = ?, end_date = ?, total_days = ?
+                WHERE leave_id = ?
+            """, (leave_type, reason, start_date, end_date, total_days, leave_id))
+            
+        conn.commit()
+        conn.close()
+        flash("Leave updated successfully.", "success")
+        return redirect(url_for("leaves"))
+
+    conn.close()
+    mode = "approve" if is_manager else "update"
+    return render_template("leave_form.html", leave=leave_req, mode=mode)
+
+
+@app.route("/leave-quotas")
+@login_required
+def leave_quotas():
+    conn = get_db()
+    
+    page = int(request.args.get('page', 1))
+    per_page = 5
+    offset = (page - 1) * per_page
+    
+    # We want to pivot the data by employee
+    query = """
+        SELECT u.employee_id, u.first_name, u.last_name,
+               SUM(CASE WHEN lq.leave_type = 'PL' THEN lq.total_quota ELSE 0 END) as pl_quota,
+               SUM(CASE WHEN lq.leave_type = 'CL' THEN lq.total_quota ELSE 0 END) as cl_quota,
+               SUM(CASE WHEN lq.leave_type = 'SL' THEN lq.total_quota ELSE 0 END) as sl_quota
+        FROM user u
+        LEFT JOIN leave_quota lq ON u.employee_id = lq.employee_id
+        GROUP BY u.employee_id, u.first_name, u.last_name
+        ORDER BY u.employee_id
+        LIMIT ? OFFSET ?
+    """
+    employees = conn.execute(query, (per_page, offset)).fetchall()
+    
+    total_emp = conn.execute("SELECT COUNT(*) FROM user").fetchone()[0]
+    total_pages = (total_emp + per_page - 1) // per_page
+    
+    conn.close()
+    return render_template("leave_quotas.html", employees=employees, page=page, total_pages=total_pages)
+
+
+@app.route("/leave-quotas/add", methods=["GET", "POST"])
+@login_required
+def add_leave_quota():
+    conn = get_db()
+    if request.method == "POST":
+        employee_id = request.form.get("employee_id")
+        pl_quota = int(request.form.get("pl_quota", 0))
+        cl_quota = int(request.form.get("cl_quota", 0))
+        sl_quota = int(request.form.get("sl_quota", 0))
+        
+        for l_type, val in [("PL", pl_quota), ("CL", cl_quota), ("SL", sl_quota)]:
+            # Insert or replace (SQLite UPSERT)
+            conn.execute("""
+                INSERT INTO leave_quota (employee_id, leave_type, total_quota, used_quota, remain_quota)
+                VALUES (?, ?, ?, 0, ?)
+                ON CONFLICT(employee_id, leave_type) 
+                DO UPDATE SET total_quota = excluded.total_quota, remain_quota = excluded.total_quota - used_quota
+            """, (employee_id, l_type, val, val))
+            
+        conn.commit()
+        conn.close()
+        flash("Leave quota updated successfully.", "success")
+        return redirect(url_for("leave_quotas"))
+        
+    all_users = conn.execute("SELECT employee_id, first_name, last_name FROM user").fetchall()
+    conn.close()
+    return render_template("leave_quota_form.html", users=all_users)
 
 
 init_db()

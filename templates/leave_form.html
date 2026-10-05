@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}
+    {% if mode == 'apply' %}Apply Leave{% elif mode == 'update' %}Update Leave{% else %}Leave Approval and Rejection{% endif %}
+{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h4 class="mb-0">
+                    {% if mode == 'apply' %}Apply Leave
+                    {% elif mode == 'update' %}Update Leave
+                    {% else %}Leave Approval and Rejection{% endif %}
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="post">
+                    
+                    {% if mode == 'approve' %}
+                    <div class="mb-3">
+                        <label class="form-label">Reportee Name:</label>
+                        <input type="text" class="form-control" value="{{ leave.first_name }} {{ leave.last_name }}" disabled>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Select Leave Type:</label>
+                        <select name="leave_type" class="form-select" {% if mode == 'approve' %}disabled{% else %}required{% endif %}>
+                            <option value="PL" {% if leave and leave.leave_type == 'PL' %}selected{% endif %}>PL</option>
+                            <option value="CL" {% if leave and leave.leave_type == 'CL' %}selected{% endif %}>CL</option>
+                            <option value="SL" {% if leave and leave.leave_type == 'SL' %}selected{% endif %}>SL</option>
+                            <option value="LWP" {% if leave and leave.leave_type == 'LWP' %}selected{% endif %}>LWP</option>
+                        </select>
+                        {% if mode == 'approve' %}<input type="hidden" name="leave_type" value="{{ leave.leave_type }}">{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Reason of Leave:</label>
+                        <textarea class="form-control" name="reason" rows="3" {% if mode == 'approve' %}disabled{% else %}required{% endif %}>{{ leave.reason if leave else '' }}</textarea>
+                        {% if mode == 'approve' %}<input type="hidden" name="reason" value="{{ leave.reason }}">{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">From:</label>
+                        <input type="date" class="form-control" name="start_date" value="{{ leave.start_date if leave else '' }}" {% if mode == 'approve' %}disabled{% else %}required{% endif %}>
+                        {% if mode == 'approve' %}<input type="hidden" name="start_date" value="{{ leave.start_date }}">{% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">To:</label>
+                        <input type="date" class="form-control" name="end_date" value="{{ leave.end_date if leave else '' }}" {% if mode == 'approve' %}disabled{% else %}required{% endif %}>
+                        {% if mode == 'approve' %}<input type="hidden" name="end_date" value="{{ leave.end_date }}">{% endif %}
+                    </div>
+
+                    {% if mode == 'approve' %}
+                    <div class="mb-4">
+                        <label class="form-label">Status:</label>
+                        <select name="status" class="form-select" required>
+                            <option value="Pending" {% if leave.status == 'Pending' %}selected{% endif %}>Pending</option>
+                            <option value="Approved" {% if leave.status == 'Approved' %}selected{% endif %}>Approved</option>
+                            <option value="Rejected" {% if leave.status == 'Rejected' %}selected{% endif %}>Rejected</option>
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            {% if mode == 'apply' %}Apply
+                            {% elif mode == 'update' %}Update Leave
+                            {% else %}Save{% endif %}
+                        </button>
+                        <a href="{{ url_for('leaves') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
