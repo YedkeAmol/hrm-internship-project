@@ -48,27 +48,65 @@
     </div>
 </div>
 
-<!-- Statistics Chart (Visual representation using progress bars/cards) -->
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card bg-warning text-white shadow-sm text-center py-3">
-            <h6>Pending</h6>
-            <h2>{{ stats.pending }}</h2>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card bg-info text-white shadow-sm text-center py-3">
-            <h6>In Progress</h6>
-            <h2>{{ stats.in_progress }}</h2>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card bg-success text-white shadow-sm text-center py-3">
-            <h6>Completed</h6>
-            <h2>{{ stats.completed }}</h2>
-        </div>
+<!-- Statistics Chart -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-body">
+        <canvas id="taskChart" height="80"></canvas>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const ctx = document.getElementById('taskChart').getContext('2d');
+    
+    const pending = {{ stats.pending }};
+    const inProgress = {{ stats.in_progress }};
+    const completed = {{ stats.completed }};
+    const total = pending + inProgress + completed;
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Total Task', 'Completed', 'Pending', 'In progress'],
+            datasets: [{
+                label: 'Tasks',
+                data: [total, completed, pending, inProgress],
+                backgroundColor: [
+                    'rgba(255, 206, 86, 0.8)', // Yellow
+                    'rgba(54, 162, 235, 0.8)', // Cyan/Blue
+                    'rgba(255, 99, 132, 0.8)', // Pink/Red
+                    'rgba(75, 192, 192, 0.8)'  // Green
+                ],
+                borderColor: [
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(75, 192, 192, 1)'
+                ],
+                borderWidth: 1,
+                barPercentage: 0.5
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false // Hide the legend since labels are on x-axis
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1 // Since tasks are whole numbers
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
 
 <!-- Task List -->
 <div class="table-responsive bg-white rounded shadow-sm p-3">

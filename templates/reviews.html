@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Performance Review{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>Performance Review</h1>
+        <p class="text-muted">Manage employee performance and feedback.</p>
+    </div>
+    <!-- Add Review button only for managers/admin, but we'll show it generally and enforce in logic or template if needed -->
+    <a href="{{ url_for('create_review') }}" class="btn btn-primary">Add Review</a>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label small">Filter By Employee</label>
+                <select name="employee_id" class="form-select form-select-sm">
+                    <option value="">Select Employee</option>
+                    {% for report in direct_reports %}
+                    <option value="{{ report.employee_id }}" {% if request.args.get('employee_id')|string == report.employee_id|string %}selected{% endif %}>
+                        {{ report.first_name }} {{ report.last_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Filter By Period</label>
+                <select name="period" class="form-select form-select-sm">
+                    <option value="">Select Period</option>
+                    <option value="Monthly" {% if request.args.get('period') == 'Monthly' %}selected{% endif %}>Monthly</option>
+                    <option value="Quarterly" {% if request.args.get('period') == 'Quarterly' %}selected{% endif %}>Quarterly</option>
+                    <option value="Annual" {% if request.args.get('period') == 'Annual' %}selected{% endif %}>Annual</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small">Filter between Date Range</label>
+                <div class="d-flex gap-2">
+                    <input type="date" name="start_date" class="form-control form-control-sm" placeholder="From:" value="{{ request.args.get('start_date', '') }}">
+                    <input type="date" name="end_date" class="form-control form-control-sm" placeholder="To:" value="{{ request.args.get('end_date', '') }}">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Filter By Rating</label>
+                <select name="rating_range" class="form-select form-select-sm">
+                    <option value="">Select Rating</option>
+                    <option value="1-5" {% if request.args.get('rating_range') == '1-5' %}selected{% endif %}>Between 1-5</option>
+                    <option value="6-8" {% if request.args.get('rating_range') == '6-8' %}selected{% endif %}>Between 6-8</option>
+                    <option value="9-10" {% if request.args.get('rating_range') == '9-10' %}selected{% endif %}>Above 8</option>
+                </select>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">Statistic</h6>
+                <small class="text-muted">Period Wise Number of Review</small>
+            </div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Monthly <span class="badge bg-primary rounded-pill">{{ stats.monthly }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Quarterly <span class="badge bg-primary rounded-pill">{{ stats.quarterly }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Annually <span class="badge bg-primary rounded-pill">{{ stats.annually }}</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">&nbsp;</h6>
+                <small class="text-muted">Rating Vs Total Number of Employees</small>
+            </div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Between 1-5 <span class="badge bg-primary rounded-pill">{{ stats.rating_1_5 }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Between 6-8 <span class="badge bg-primary rounded-pill">{{ stats.rating_6_8 }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Above 8 <span class="badge bg-primary rounded-pill">{{ stats.rating_above_8 }}</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Reviews List -->
+<div class="table-responsive bg-white rounded shadow-sm p-3">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Sr.No</th>
+                <th>Employee Name</th>
+                <th>Review Title</th>
+                <th>Review Date</th>
+                <th>Review Period</th>
+                <th>Rating</th>
+                <th>See Comments</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in reviews %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ r.emp_first }} {{ r.emp_last }}</td>
+                <td>{{ r.review_title }}</td>
+                <td>{{ r.review_date }}</td>
+                <td>{{ r.review_period }}</td>
+                <td>{{ r.rating }}</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-info text-white" onclick="alert('{{ r.comments | escape }}')">Click to see</button>
+                </td>
+                <td>
+                    {% if r.reviewed_by == current_user_id %}
+                    <div class="d-flex gap-1">
+                        <a href="{{ url_for('edit_review', review_id=r.review_id) }}" class="btn btn-sm btn-warning">Edit</a>
+                        <form method="post" action="{{ url_for('delete_review', review_id=r.review_id) }}" onsubmit="return confirm('Delete this review?');">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" class="text-center text-muted">No reviews found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

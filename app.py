@@ -93,6 +93,22 @@ def init_db():
             FOREIGN KEY (assigned_by) REFERENCES user (employee_id)
         )
     ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS performance_review (
+            review_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            review_title VARCHAR(100) NOT NULL,
+            review_date DATE NOT NULL,
+            employee_id INTEGER NOT NULL,
+            reviewed_by INTEGER NOT NULL,
+            review_period VARCHAR(100) NOT NULL,
+            rating INTEGER NOT NULL,
+            comments VARCHAR(300),
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            FOREIGN KEY (employee_id) REFERENCES user (employee_id),
+            FOREIGN KEY (reviewed_by) REFERENCES user (employee_id)
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -791,6 +807,172 @@ def delete_task(task_id):
     conn.close()
     flash("Task deleted successfully.", "success")
     return redirect(url_for("tasks"))
+
+
+
+@app.route("/reviews")
+@login_required
+def reviews():
+    conn = get_db()
+    current_user_id = session.get("employee_id")
+    
+    # Direct reports for filter dropdown (if manager)
+    direct_reports = conn.execute(
+        "SELECT employee_id, first_name, last_name FROM user WHERE reporting_manager_id = ?",
+        (current_user_id,)
+    ).fetchall()
+
+    # Filter params
+    filter_emp = request.args.get("employee_id", "")
+    filter_period = request.args.get("period", "")
+    start_date = request.args.get("start_date", "")
+    end_date = request.args.get("end_date", "")
+    filter_rating = request.args.get("rating_range", "")
+
+    query = """
+        SELECT pr.*, 
+               u.first_name as emp_first, u.last_name as emp_last,
+               mgr.first_name as mgr_first, mgr.last_name as mgr_last
+        FROM performance_review pr
+        JOIN user u ON pr.employee_id = u.employee_id
+        JOIN user mgr ON pr.reviewed_by = mgr.employee_id
+        WHERE (pr.reviewed_by = ? OR pr.employee_id = ?)
+    """
+    params = [current_user_id, current_user_id]
+
+    if filter_emp:
+        query += " AND pr.employee_id = ?"
+        params.append(filter_emp)
+    if filter_period:
+        query += " AND pr.review_period = ?"
+        params.append(filter_period)
+    if start_date and end_date:
+        query += " AND (pr.review_date >= ? AND pr.review_date <= ?)"
+        params.extend([start_date, end_date])
+    if filter_rating:
+        if filter_rating == "1-5":
+            query += " AND pr.rating BETWEEN 1 AND 5"
+        elif filter_rating == "6-8":
+            query += " AND pr.rating BETWEEN 6 AND 8"
+        elif filter_rating == "9-10":
+            query += " AND pr.rating >= 9"
+
+    query += " ORDER BY pr.review_date DESC"
+    all_reviews = conn.execute(query, params).fetchall()
+
+    # Calculate statistics
+    stats = {
+        "monthly": sum(1 for r in all_reviews if r['review_period'] == 'Monthly'),
+        "quarterly": sum(1 for r in all_reviews if r['review_period'] == 'Quarterly'),
+        "annually": sum(1 for r in all_reviews if r['review_period'] == 'Annually' or r['review_period'] == 'Annual'),
+        "rating_1_5": sum(1 for r in all_reviews if 1 <= r['rating'] <= 5),
+        "rating_6_8": sum(1 for r in all_reviews if 6 <= r['rating'] <= 8),
+        "rating_above_8": sum(1 for r in all_reviews if r['rating'] >= 9)
+    }
+
+    conn.close()
+    return render_template(
+        "reviews.html", 
+        reviews=all_reviews, 
+        direct_reports=direct_reports,
+        stats=stats,
+        current_user_id=current_user_id
+    )
+
+
+@app.route("/reviews/create", methods=["GET", "POST"])
+@login_required
+def create_review():
+    conn = get_db()
+    current_user_id = session.get("employee_id")
+    
+    # "Select Employee" must show only direct reports
+    direct_reports = conn.execute(
+        "SELECT employee_id, first_name, last_name FROM user WHERE reporting_manager_id = ?",
+        (current_user_id,)
+    ).fetchall()
+
+    if request.method == "POST":
+        title = request.form.get("review_title", "").strip()
+        employee_id = request.form.get("employee_id", "")
+        review_date = request.form.get("review_date", "")
+        period = request.form.get("review_period", "")
+        rating = request.form.get("rating", type=int)
+        comments = request.form.get("comments", "").strip()
+
+        if not title or not employee_id or not rating:
+            flash("Title, Employee, and Rating are required.", "danger")
+            return render_template("review_form.html", review=None, reports=direct_reports)
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        conn.execute("""
+            INSERT INTO performance_review 
+            (review_title, employee_id, reviewed_by, review_date, review_period, rating, comments, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (title, employee_id, current_user_id, review_date, period, rating, comments, now, now))
+        
+        conn.commit()
+        conn.close()
+        flash("Review created successfully.", "success")
+        return redirect(url_for("reviews"))
+
+    conn.close()
+    return render_template("review_form.html", review=None, reports=direct_reports)
+
+
+@app.route("/reviews/<int:review_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_review(review_id):
+    conn = get_db()
+    current_user_id = session.get("employee_id")
+    
+    review_row = conn.execute("SELECT * FROM performance_review WHERE review_id = ?", (review_id,)).fetchone()
+
+    if not review_row:
+        conn.close()
+        flash("Review not found.", "danger")
+        return redirect(url_for("reviews"))
+
+    direct_reports = conn.execute(
+        "SELECT employee_id, first_name, last_name FROM user WHERE reporting_manager_id = ?",
+        (current_user_id,)
+    ).fetchall()
+
+    if request.method == "POST":
+        title = request.form.get("review_title", "").strip()
+        employee_id = request.form.get("employee_id", "")
+        review_date = request.form.get("review_date", "")
+        period = request.form.get("review_period", "")
+        rating = request.form.get("rating", type=int)
+        comments = request.form.get("comments", "").strip()
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        conn.execute("""
+            UPDATE performance_review 
+            SET review_title = ?, employee_id = ?, review_date = ?, review_period = ?, rating = ?, comments = ?, updated_at = ?
+            WHERE review_id = ?
+        """, (title, employee_id, review_date, period, rating, comments, now, review_id))
+        
+        conn.commit()
+        conn.close()
+        flash("Review updated successfully.", "success")
+        return redirect(url_for("reviews"))
+
+    conn.close()
+    return render_template("review_form.html", review=review_row, reports=direct_reports)
+
+
+@app.post("/reviews/<int:review_id>/delete")
+@login_required
+def delete_review(review_id):
+    conn = get_db()
+    conn.execute("DELETE FROM performance_review WHERE review_id = ?", (review_id,))
+    conn.commit()
+    conn.close()
+    flash("Review deleted successfully.", "success")
+    return redirect(url_for("reviews"))
 
 
 init_db()
