@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}{% if task %}Update Task{% else %}Create Task{% endif %}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h4 class="mb-0">{% if task %}Task Details{% else %}Task Creation{% endif %}</h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="post">
+                    
+                    {% set is_assignee_only = task and session.get('employee_id') != task.assigned_by %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Task Title:</label>
+                        <input type="text" class="form-control" name="task_title" value="{{ task.task_title if task else '' }}" required {% if is_assignee_only %}readonly{% endif %}>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Enter Task Description:</label>
+                        <textarea class="form-control" name="task_description" rows="3" {% if is_assignee_only %}readonly{% endif %}>{{ task.task_description if task else '' }}</textarea>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Select Task priority:</label>
+                            {% if is_assignee_only %}
+                                <input type="text" class="form-control" value="{{ task.task_priority }}" readonly>
+                                <input type="hidden" name="task_priority" value="{{ task.task_priority }}">
+                            {% else %}
+                                <select name="task_priority" class="form-select">
+                                    <option value="High" {% if task and task.task_priority == 'High' %}selected{% endif %}>High</option>
+                                    <option value="Medium" {% if task and task.task_priority == 'Medium' %}selected{% endif %}>Medium</option>
+                                    <option value="Low" {% if task and task.task_priority == 'Low' %}selected{% endif %}>Low</option>
+                                </select>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Assigned To:</label>
+                            {% if is_assignee_only %}
+                                <!-- Employee doesn't need to change assignees -->
+                                <select class="form-select" disabled>
+                                    <option>Me</option>
+                                </select>
+                                <input type="hidden" name="employee_id" value="{{ task.employee_id }}">
+                            {% else %}
+                                <select name="employee_id" class="form-select" required>
+                                    <option value="">Select Employee</option>
+                                    {% for report in reports %}
+                                    <option value="{{ report.employee_id }}" {% if task and task.employee_id == report.employee_id %}selected{% endif %}>
+                                        {{ report.first_name }} {{ report.last_name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Shows only employees reporting to you.</small>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Start date:</label>
+                            <input type="date" class="form-control" name="start_date" value="{{ task.start_date if task else '' }}" {% if is_assignee_only %}readonly{% endif %}>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">End date:</label>
+                            <input type="date" class="form-control" name="end_date" value="{{ task.end_date if task else '' }}" {% if is_assignee_only %}readonly{% endif %}>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Select Task Type:</label>
+                            {% if is_assignee_only %}
+                                <input type="text" class="form-control" value="{{ task.task_type }}" readonly>
+                                <input type="hidden" name="task_type" value="{{ task.task_type }}">
+                            {% else %}
+                                <select name="task_type" class="form-select">
+                                    <option value="Individual" {% if task and task.task_type == 'Individual' %}selected{% endif %}>Individual</option>
+                                    <option value="Team" {% if task and task.task_type == 'Team' %}selected{% endif %}>Team</option>
+                                </select>
+                            {% endif %}
+                        </div>
+                        
+                        {% if task %}
+                        <!-- Status is shown when editing -->
+                        <div class="col-md-6">
+                            <label class="form-label">Task Status:</label>
+                            <select name="status" class="form-select">
+                                <option value="Pending" {% if task.status == 'Pending' %}selected{% endif %}>Pending</option>
+                                <option value="In progress" {% if task.status == 'In progress' %}selected{% endif %}>In progress</option>
+                                <option value="Completed" {% if task.status == 'Completed' %}selected{% endif %}>Completed</option>
+                            </select>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            {% if task %}Update Task{% else %}Create Task{% endif %}
+                        </button>
+                        <a href="{{ url_for('tasks') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -66,6 +66,33 @@ def init_db():
             FOREIGN KEY (reporting_manager_id) REFERENCES user (employee_id)
         )
     """)
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS task (
+            task_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_title VARCHAR(100) NOT NULL,
+            task_description VARCHAR(300),
+            task_priority VARCHAR(200),
+            start_date DATE,
+            end_date DATE,
+            task_type VARCHAR(50),
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL
+        )
+    ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS task_assignment (
+            assignment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            employee_id INTEGER NOT NULL,
+            assigned_by INTEGER NOT NULL,
+            assigned_date DATETIME NOT NULL,
+            status VARCHAR(200) DEFAULT 'Pending',
+            completed_at DATETIME,
+            FOREIGN KEY (task_id) REFERENCES task (task_id),
+            FOREIGN KEY (employee_id) REFERENCES user (employee_id),
+            FOREIGN KEY (assigned_by) REFERENCES user (employee_id)
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -589,6 +616,182 @@ def reset_password():
             return redirect(url_for("login"))
 
     return render_template("reset_password.html")
+
+
+@app.route("/tasks")
+@login_required
+def tasks():
+    conn = get_db()
+    current_user_id = session.get("employee_id")
+    
+    # Get direct reports for filtering
+    direct_reports = conn.execute(
+        "SELECT employee_id, first_name, last_name FROM user WHERE reporting_manager_id = ?",
+        (current_user_id,)
+    ).fetchall()
+
+    filter_emp = request.args.get("employee_id", "")
+    filter_status = request.args.get("status", "")
+    start_date = request.args.get("start_date", "")
+    end_date = request.args.get("end_date", "")
+
+    query = """
+        SELECT t.*, ta.status, ta.assignment_id, ta.employee_id, ta.assigned_by,
+               u.first_name as assignee_first, u.last_name as assignee_last,
+               mgr.first_name as assignor_first, mgr.last_name as assignor_last
+        FROM task t
+        JOIN task_assignment ta ON t.task_id = ta.task_id
+        JOIN user u ON ta.employee_id = u.employee_id
+        JOIN user mgr ON ta.assigned_by = mgr.employee_id
+        WHERE (ta.assigned_by = ? OR ta.employee_id = ?)
+    """
+    params = [current_user_id, current_user_id]
+
+    if filter_emp:
+        query += " AND ta.employee_id = ?"
+        params.append(filter_emp)
+    if filter_status:
+        query += " AND ta.status = ?"
+        params.append(filter_status)
+    if start_date and end_date:
+        query += " AND (t.start_date >= ? AND t.end_date <= ?)"
+        params.extend([start_date, end_date])
+
+    query += " ORDER BY t.created_at DESC"
+    tasks = conn.execute(query, params).fetchall()
+
+    # Calculate stats
+    pending = sum(1 for t in tasks if t['status'] == 'Pending')
+    in_progress = sum(1 for t in tasks if t['status'] == 'In progress')
+    completed = sum(1 for t in tasks if t['status'] == 'Completed')
+
+    conn.close()
+    return render_template(
+        "tasks.html", 
+        tasks=tasks, 
+        direct_reports=direct_reports,
+        stats={"pending": pending, "in_progress": in_progress, "completed": completed},
+        current_user_id=current_user_id
+    )
+
+@app.route("/tasks/create", methods=["GET", "POST"])
+@login_required
+def create_task():
+    conn = get_db()
+    current_user_id = session.get("employee_id")
+    
+    # "Assigned To" must show only employees reporting to logged-in user
+    direct_reports = conn.execute(
+        "SELECT employee_id, first_name, last_name FROM user WHERE reporting_manager_id = ?",
+        (current_user_id,)
+    ).fetchall()
+
+    if request.method == "POST":
+        title = request.form.get("task_title", "").strip()
+        description = request.form.get("task_description", "").strip()
+        priority = request.form.get("task_priority", "")
+        employee_id = request.form.get("employee_id", "")
+        start_date = request.form.get("start_date", "")
+        end_date = request.form.get("end_date", "")
+        task_type = request.form.get("task_type", "")
+
+        if not title or not employee_id:
+            flash("Task title and assignee are required.", "danger")
+            return render_template("task_form.html", task=None, reports=direct_reports)
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO task (task_title, task_description, task_priority, start_date, end_date, task_type, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (title, description, priority, start_date, end_date, task_type, now, now))
+        
+        task_id = cursor.lastrowid
+        
+        cursor.execute("""
+            INSERT INTO task_assignment (task_id, employee_id, assigned_by, assigned_date, status)
+            VALUES (?, ?, ?, ?, ?)
+        """, (task_id, employee_id, current_user_id, now, 'Pending'))
+        
+        conn.commit()
+        conn.close()
+        flash("Task created successfully.", "success")
+        return redirect(url_for("tasks"))
+
+    conn.close()
+    return render_template("task_form.html", task=None, reports=direct_reports)
+
+
+@app.route("/tasks/<int:task_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_task(task_id):
+    conn = get_db()
+    current_user_id = session.get("employee_id")
+    
+    task_row = conn.execute("""
+        SELECT t.*, ta.employee_id, ta.assignment_id, ta.status 
+        FROM task t 
+        JOIN task_assignment ta ON t.task_id = ta.task_id 
+        WHERE t.task_id = ?
+    """, (task_id,)).fetchone()
+
+    if not task_row:
+        conn.close()
+        flash("Task not found.", "danger")
+        return redirect(url_for("tasks"))
+
+    direct_reports = conn.execute(
+        "SELECT employee_id, first_name, last_name FROM user WHERE reporting_manager_id = ?",
+        (current_user_id,)
+    ).fetchall()
+
+    if request.method == "POST":
+        title = request.form.get("task_title", "").strip()
+        description = request.form.get("task_description", "").strip()
+        priority = request.form.get("task_priority", "")
+        employee_id = request.form.get("employee_id", "")
+        start_date = request.form.get("start_date", "")
+        end_date = request.form.get("end_date", "")
+        task_type = request.form.get("task_type", "")
+        status = request.form.get("status", task_row['status'])
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        conn.execute("""
+            UPDATE task 
+            SET task_title = ?, task_description = ?, task_priority = ?, start_date = ?, end_date = ?, task_type = ?, updated_at = ?
+            WHERE task_id = ?
+        """, (title, description, priority, start_date, end_date, task_type, now, task_id))
+        
+        completed_at = now if status == 'Completed' and task_row['status'] != 'Completed' else task_row.get('completed_at')
+        
+        conn.execute("""
+            UPDATE task_assignment 
+            SET employee_id = ?, status = ?, completed_at = ?
+            WHERE task_id = ?
+        """, (employee_id, status, completed_at, task_id))
+        
+        conn.commit()
+        conn.close()
+        flash("Task updated successfully.", "success")
+        return redirect(url_for("tasks"))
+
+    conn.close()
+    return render_template("task_form.html", task=task_row, reports=direct_reports)
+
+
+@app.post("/tasks/<int:task_id>/delete")
+@login_required
+def delete_task(task_id):
+    conn = get_db()
+    conn.execute("DELETE FROM task_assignment WHERE task_id = ?", (task_id,))
+    conn.execute("DELETE FROM task WHERE task_id = ?", (task_id,))
+    conn.commit()
+    conn.close()
+    flash("Task deleted successfully.", "success")
+    return redirect(url_for("tasks"))
+
 
 init_db()
 
