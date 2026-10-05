@@ -1,7 +1,6 @@
-from flask import Flask, session
+from flask import Flask, session, render_template, request, redirect, url_for, flash
 from functools import wraps
 import random
-, render_template, request, redirect, url_for, flash
 import sqlite3
 from datetime import datetime
 
