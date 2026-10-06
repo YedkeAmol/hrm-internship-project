@@ -1016,7 +1016,7 @@ def leaves():
         (current_user_id,)
     ).fetchall()
     
-    bal_dict = {"PL": 0, "CL": 0, "SL": 0}
+    bal_dict = {"PL": 0, "CL": 0, "SL": 0, "LWP": 0}
     for b in balances:
         bal_dict[b['leave_type']] = b['remain_quota']
 
@@ -1167,7 +1167,8 @@ def leave_quotas():
         SELECT u.employee_id, u.first_name, u.last_name,
                SUM(CASE WHEN lq.leave_type = 'PL' THEN lq.total_quota ELSE 0 END) as pl_quota,
                SUM(CASE WHEN lq.leave_type = 'CL' THEN lq.total_quota ELSE 0 END) as cl_quota,
-               SUM(CASE WHEN lq.leave_type = 'SL' THEN lq.total_quota ELSE 0 END) as sl_quota
+               SUM(CASE WHEN lq.leave_type = 'SL' THEN lq.total_quota ELSE 0 END) as sl_quota,
+               SUM(CASE WHEN lq.leave_type = 'LWP' THEN lq.total_quota ELSE 0 END) as lwp_quota
         FROM user u
         LEFT JOIN leave_quota lq ON u.employee_id = lq.employee_id
         GROUP BY u.employee_id, u.first_name, u.last_name
@@ -1192,8 +1193,9 @@ def add_leave_quota():
         pl_quota = int(request.form.get("pl_quota", 0))
         cl_quota = int(request.form.get("cl_quota", 0))
         sl_quota = int(request.form.get("sl_quota", 0))
+        lwp_quota = int(request.form.get("lwp_quota", 0))
         
-        for l_type, val in [("PL", pl_quota), ("CL", cl_quota), ("SL", sl_quota)]:
+        for l_type, val in [("PL", pl_quota), ("CL", cl_quota), ("SL", sl_quota), ("LWP", lwp_quota)]:
             # Insert or replace (SQLite UPSERT)
             conn.execute("""
                 INSERT INTO leave_quota (employee_id, leave_type, total_quota, used_quota, remain_quota)

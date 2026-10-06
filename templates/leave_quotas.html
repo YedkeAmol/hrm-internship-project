@@ -17,6 +17,7 @@
                 <th>PL Quota</th>
                 <th>CL Quota</th>
                 <th>SL Quota</th>
+                <th>LWP Quota</th>
                 <th>Edit</th>
             </tr>
         </thead>
@@ -28,6 +29,7 @@
                 <td>{{ emp.pl_quota }}</td>
                 <td>{{ emp.cl_quota }}</td>
                 <td>{{ emp.sl_quota }}</td>
+                <td>{{ emp.lwp_quota }}</td>
                 <td>
                     <!-- Even though it says 'add', we can use it to edit as well since it upserts -->
                     <a href="{{ url_for('add_leave_quota') }}?employee_id={{ emp.employee_id }}" class="btn btn-sm btn-warning">Edit</a>
