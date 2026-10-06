@@ -580,13 +580,20 @@ def login():
         password = request.form.get("password", "").strip()
 
         conn = get_db()
-        user = conn.execute("SELECT * FROM user WHERE username = ? AND password = ?", (username, password)).fetchone()
+        user = conn.execute("""
+            SELECT u.*, r.role_name 
+            FROM user u 
+            LEFT JOIN role r ON u.role_id = r.role_id 
+            WHERE u.username = ? AND u.password = ?
+        """, (username, password)).fetchone()
         conn.close()
 
         if user:
             session["employee_id"] = user["employee_id"]
             session["username"] = user["username"]
             session["name"] = f"{user['first_name']} {user['last_name']}"
+            role_name = user["role_name"] or ""
+            session["is_admin"] = True if (user["username"].lower() == "admin" or "admin" in role_name.lower() or "hr" in role_name.lower()) else False
             flash("Logged in successfully.", "success")
             return redirect(url_for("dashboard"))
         else:

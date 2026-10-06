@@ -14,13 +14,17 @@
         <h3 class="mb-4 text-warning">HRM System</h3>
         <div class="d-flex flex-column gap-2">
             <a href="{{ url_for('dashboard') }}" class="text-white text-decoration-none p-2 rounded hover-bg">Dashboard</a>
+            {% if session.get('is_admin') %}
             <a href="{{ url_for('departments') }}" class="text-white text-decoration-none p-2 rounded hover-bg">Departments</a>
             <a href="{{ url_for('roles') }}" class="text-white text-decoration-none p-2 rounded hover-bg">Roles</a>
             <a href="{{ url_for('employees') }}" class="text-white text-decoration-none p-2 rounded hover-bg">Employees</a>
+            {% endif %}
             <a href="{{ url_for('tasks') }}" class="text-white text-decoration-none p-2 rounded hover-bg">Tasks</a>
             <a href="{{ url_for('reviews') }}" class="text-white text-decoration-none p-2 rounded hover-bg">Performance Review</a>
             <a href="{{ url_for('leaves') }}" class="text-white text-decoration-none p-2 rounded hover-bg">Leave Management</a>
+            {% if session.get('is_admin') %}
             <a href="{{ url_for('leave_quotas') }}" class="text-white text-decoration-none p-2 rounded hover-bg">Leave Quotas</a>
+            {% endif %}
         </div>
     </aside>
     {% endif %}
